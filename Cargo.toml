@@ -4,7 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chrono = { version = "0.4.34", default-features = false, features = ["clock", "std"] }
+time = { version = "0.3", default-features = false, features = ["formatting", "local-offset", "macros", "std"] }
+once_cell = "1.18.0"
+
+[target.aarch64-linux-android]
+linker = "aarch64-linux-android-clang"
+rustflags = [
+    "-C", "link-arg=-static-libgcc",
+    "-C", "link-arg=-Wl,--gc-sections",
+    "-C", "link-arg=-Wl,--strip-all",
+]
 
 [profile.release]
 opt-level = "z"
@@ -13,3 +22,4 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 incremental = false
+debug = false
