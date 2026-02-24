@@ -1,0 +1,7 @@
+[package]
+name = "battery_calibrate"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.34" # 用于格式化时间

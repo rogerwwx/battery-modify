@@ -1,0 +1,36 @@
+name: Build Android Binary
+
+on:
+  push:
+    branches: [ "main" ] # 每次推送到 main 分支时自动编译
+  workflow_dispatch:     # 允许你在网页端手动点击运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install Cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build for Android (aarch64)
+        run: cross build --target aarch64-linux-android --release
+
+      - name: Rename Binary
+        run: |
+          mkdir -p output
+          # 提取编译后的二进制文件
+          cp target/aarch64-linux-android/release/battery_calibrate output/battery_service
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: battery_service_arm64
+          path: output/battery_service
