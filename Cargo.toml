@@ -11,4 +11,6 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 strip = "debuginfo"
+panic = "abort"
+strip = "symbols"
 incremental = false
