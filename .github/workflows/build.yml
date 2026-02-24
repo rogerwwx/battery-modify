@@ -2,8 +2,8 @@ name: Build Android Binary
 
 on:
   push:
-    branches: [ "main" ] # 每次推送到 main 分支时自动编译
-  workflow_dispatch:     # 允许你在网页端手动点击运行
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,18 +17,17 @@ jobs:
         with:
           targets: aarch64-linux-android
 
-      - name: Install Cross
-        run: cargo install cross
+      - name: Install Cross (使用最新Git版以修复libunwind bug)
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build for Android (aarch64)
         env:
-          CROSS_NO_WARNINGS: 0
+          CROSS_NO_WARNINGS: 0 # 核心：关闭新版 cross 烦人的警告报错机制
         run: cross build --target aarch64-linux-android --release
 
       - name: Rename Binary
         run: |
           mkdir -p output
-          # 提取编译后的二进制文件
           cp target/aarch64-linux-android/release/battery_calibrate output/battery_service
 
       - name: Upload Artifact
