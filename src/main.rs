@@ -23,19 +23,12 @@ const BRIGHTNESS_PATHS: &[&str] = &[
 const COUNTER_FILE: &str = "/data/adb/battery_calibrate.counter";
 const MAX_CHARGE_COUNTER_FILE: &str = "/data/adb/battery_max_charge_counter";
 
-static TIME_FMT: Lazy<Vec<FormatItem<'static>>> =
-    Lazy::new(|| format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"));
+static TIME_FMT: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
 fn now() -> String {
-    let fmt: &Vec<FormatItem> = &*TIME_FMT;
     let dt = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
-    dt.format(fmt).unwrap_or_else(|_| {
-        let secs = SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        format!("{}", secs)
-    })
+    dt.format(TIME_FMT).unwrap_or_else(|_| "time_err".to_string())
 }
 
 fn truncate_log_keep_last(log_path: &str, keep_lines: usize) {
