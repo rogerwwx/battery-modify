@@ -47,8 +47,6 @@ fn write_log(msg: &str) {
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(LOG_FILE) {
         let _ = writeln!(file, "[{}] {}", now(), msg);
     }
-    // 控制台同步输出（用于调试）
-    println!("[{}] {}", now(), msg);
 }
 
 fn read_sys_file(path: &str) -> String {
@@ -132,7 +130,7 @@ fn cancel_countdown() {
         let _ = Command::new("pm").args(&["enable", target_pkg]).output();
         sleep(Duration::from_secs(5));
         let _ = Command::new("pm").args(&["disable", target_pkg]).output();
-        
+
         let out_final = Command::new("pm").args(&["list", "packages"]).output().unwrap();
         if !String::from_utf8_lossy(&out_final.stdout).contains(target_pkg) {
             write_log("电源服务最终禁用成功");
@@ -210,7 +208,7 @@ fn monitor_voltage() {
                         max_charge_counter = charge_counter_raw;
                         temp_max_charge = charge_counter_raw;
                         let _ = fs::write(MAX_CHARGE_COUNTER_FILE, max_charge_counter.to_string());
-                        
+
                         max_charge_counter_mah = if max_charge_counter > 20000 { max_charge_counter / 1000 } else { max_charge_counter };
                         write_log(&format!("持续充满中，更新最大电池容量:{}mAh", max_charge_counter_mah));
                     }
@@ -233,7 +231,7 @@ fn monitor_voltage() {
 
         // 状态对
         let status_pair = format!("{}:{}", last_status, charging_status);
-        
+
         // 计算百分比的闭包 (Rust 中没有 awk，直接用整数乘除法实现)
         let mut calculate_level = || -> i64 {
             if max_charge_counter == 0 { return 50; }
@@ -352,7 +350,7 @@ fn main() {
     let reboot_count = read_sys_file_i64(COUNTER_FILE);
     let new_count = reboot_count + 1;
     let _ = fs::write(COUNTER_FILE, new_count.to_string());
-    
+
     write_log(&format!("当前手机重启 {} 次", new_count));
     write_log("手机重启次数为60的倍数时，才执行\"重置电池统计信息\"");
 
