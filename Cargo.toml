@@ -4,18 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-chrono = { version = "0.4.34", default-features = false, features = ["local"] } # 禁用chrono默认特性，只保留需要的
+chrono = { version = "0.4.34", default-features = false, features = ["local"] }
 
 [profile.release]
-# 优化级别：3是最高优化，z是针对体积的优化（比3更适合体积优先）
-opt-level = "z"  # 或 "s"（s比z快一点，体积稍大；z体积最小，性能略降）
-# 链接时优化（LTO）：大幅减小体积，编译时间会变长
+opt-level = "z"
 lto = true
-# 代码生成单元：设为1提升优化效果（牺牲编译速度）
 codegen-units = 1
-# Panic策略：改为abort（不生成panic展开信息，大幅减小体积）
 panic = "abort"
-# 剥离调试符号
 strip = "debuginfo"
-# 禁用增量编译（减小体积，加速优化）
 incremental = false
