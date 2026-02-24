@@ -18,9 +18,11 @@ jobs:
           targets: aarch64-linux-android
 
       - name: Install Cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        run: cargo install cross
 
       - name: Build for Android (aarch64)
+        env:
+          CROSS_NO_WARNINGS: 0
         run: cross build --target aarch64-linux-android --release
 
       - name: Rename Binary
