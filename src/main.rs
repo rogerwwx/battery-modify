@@ -6,8 +6,8 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 // ===== 全局常量定义 =====
-const LONG_SLEEP: u64 = 2;
-const DISCHARGE_THRESHOLD: u64 = 15;
+const LONG_SLEEP: u64 = 3;
+const DISCHARGE_THRESHOLD: u64 = 10;
 const MAX_RETRY: u32 = 3;
 
 const LOG_FILE: &str = "/data/adb/battery_calibrate.log";
