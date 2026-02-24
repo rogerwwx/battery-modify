@@ -10,6 +10,5 @@ chrono = { version = "0.4.34", default-features = false, features = ["clock", "s
 opt-level = "z"
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = "debuginfo"
 incremental = false

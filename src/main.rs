@@ -62,7 +62,7 @@ fn read_sys_file_i64(path: &str) -> i64 {
 
 fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
     write_log(&format!("正在执行: {}", desc));
-    for retry in 0..MAX_RETRY {
+    for _retry in 0..MAX_RETRY {
         match Command::new(cmd).args(args).output() {
             Ok(output) => {
                 let status_success = output.status.success();
@@ -233,7 +233,7 @@ fn monitor_voltage() {
         let status_pair = format!("{}:{}", last_status, charging_status);
 
         // 计算百分比的闭包 (Rust 中没有 awk，直接用整数乘除法实现)
-        let mut calculate_level = || -> i64 {
+        let calculate_level = || -> i64 {
             if max_charge_counter == 0 { return 50; }
             let mut level = (charge_counter_mah * 100) / max_charge_counter;
             if level <= 0 { level = 5; }
