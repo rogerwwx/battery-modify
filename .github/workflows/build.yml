@@ -2,8 +2,8 @@ name: Build Android Binary
 
 on:
   push:
-    branches: [ "main" ]   # 每次推送到 main 分支时自动编译
-  workflow_dispatch:       # 允许你在网页端手动点击运行
+    branches: [ "main" ] # 每次推送到 main 分支时自动编译
+  workflow_dispatch:     # 允许你在网页端手动点击运行
 
 jobs:
   build:
@@ -26,6 +26,7 @@ jobs:
       - name: Rename Binary
         run: |
           mkdir -p output
+          # 提取编译后的二进制文件
           cp target/aarch64-linux-android/release/battery_calibrate output/battery_service
 
       - name: Upload Artifact
