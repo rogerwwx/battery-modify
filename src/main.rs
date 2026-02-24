@@ -6,11 +6,10 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
-use once_cell::sync::Lazy;
 use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
-const LONG_SLEEP: u64 = 2;
-const DISCHARGE_THRESHOLD: u64 = 15;
+const LONG_SLEEP: u64 = 3;
+const DISCHARGE_THRESHOLD: u64 = 10;
 const MAX_RETRY: u32 = 3;
 
 const LOG_FILE: &str = "/data/adb/battery_calibrate.log";
