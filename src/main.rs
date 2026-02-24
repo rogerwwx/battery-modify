@@ -47,6 +47,8 @@ fn write_log(msg: &str) {
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(LOG_FILE) {
         let _ = writeln!(file, "[{}] {}", now(), msg);
     }
+    // 控制台同步输出（用于调试）
+    println!("[{}] {}", now(), msg);
 }
 
 fn read_sys_file(path: &str) -> String {
