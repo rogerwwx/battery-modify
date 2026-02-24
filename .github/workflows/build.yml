@@ -21,6 +21,8 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build for Android (aarch64)
+        env:
+          RUSTFLAGS: "-C link-arg=-s -C link-arg=-Wl,--gc-sections"
         run: cross build --target aarch64-linux-android --release
 
       - name: Rename Binary
