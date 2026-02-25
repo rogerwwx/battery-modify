@@ -8,6 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
+// 调整为和Shell一致的常量值
 const LONG_SLEEP: u64 = 3;
 const DISCHARGE_THRESHOLD: u64 = 10;
 const MAX_RETRY: u32 = 3;
@@ -170,12 +171,12 @@ fn monitor_voltage() {
         let _ = fs::write(MAX_CHARGE_COUNTER_FILE, max_charge_counter.to_string());
     }
 
+    // 移除初次获取最大容量的日志输出
     let mut max_charge_counter_mah = if max_charge_counter > 20000 {
         max_charge_counter / 1000
     } else {
         max_charge_counter
     };
-    write_log(&format!("初次获取最大电池容量:{}mAh", max_charge_counter_mah));
 
     loop {
         let loop_start = SystemTime::now();
@@ -198,7 +199,7 @@ fn monitor_voltage() {
                         } else {
                             max_charge_counter
                         };
-                        write_log(&format!("电池首次充满，更新最大电池容量:{}mAh", max_charge_counter_mah));
+                        // 移除电池首次充满更新最大容量的日志
                     } else if charge_counter_raw != temp_max_charge {
                         max_charge_counter = charge_counter_raw;
                         temp_max_charge = charge_counter_raw;
@@ -208,7 +209,7 @@ fn monitor_voltage() {
                         } else {
                             max_charge_counter
                         };
-                        write_log(&format!("持续充满中，更新最大电池容量:{}mAh", max_charge_counter_mah));
+                        // 移除持续充满更新最大容量的日志
                     }
                 } else {
                     in_full_state = false;
@@ -246,15 +247,15 @@ fn monitor_voltage() {
             match (last_status.as_str(), charging_status.as_str()) {
                 ("Discharging", "Charging") => {
                     let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                    // 修正：补全当前电池容量，文案和shell一致
-                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", capacity, charge_counter_mah, max_charge_counter_mah));
+                    // 移除最大电池容量字段，仅保留当前电池容量
+                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh", capacity, charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Charging", "Discharging") => {
                     let level = calculate_level();
                     let _ = Command::new("dumpsys").args(&["battery", "set", "level", &level.to_string()]).output();
-                    // 修正：补全当前电池容量，文案和shell一致
-                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", level, capacity, charge_counter_mah, max_charge_counter_mah));
+                    // 移除最大电池容量字段，仅保留当前电池容量
+                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh", level, capacity, charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Discharging", "Discharging") => {
@@ -262,8 +263,8 @@ fn monitor_voltage() {
                     if discharge_counter % DISCHARGE_THRESHOLD == 0 {
                         let level = calculate_level();
                         let _ = Command::new("dumpsys").args(&["battery", "set", "level", &level.to_string()]).output();
-                        // 修正：补全当前电池容量，文案和shell一致
-                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", level, capacity, charge_counter_mah, max_charge_counter_mah));
+                        // 移除最大电池容量字段，仅保留当前电池容量
+                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh", level, capacity, charge_counter_mah));
                     }
                 }
                 ("Charging", "Charging") => {}
@@ -272,8 +273,8 @@ fn monitor_voltage() {
         } else {
             if last_status == "Discharging" && charging_status == "Charging" {
                 let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                // 修正：补全当前电池容量，文案和shell一致
-                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", capacity, charge_counter_mah, max_charge_counter_mah));
+                // 移除最大电池容量字段，仅保留当前电池容量
+                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh", capacity, charge_counter_mah));
                 discharge_counter = 0;
             }
         }
