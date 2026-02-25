@@ -7,7 +7,8 @@ use std::time::{Duration, SystemTime};
 
 use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
-use nix::sys::timerfd::{TimerFd, ClockId, TimerFlags, Expiration};
+// 修复点1：添加 TimerSetTimeFlags 导入
+use nix::sys::timerfd::{TimerFd, ClockId, TimerFlags, TimerSetTimeFlags, Expiration};
 
 const LONG_SLEEP: u64 = 3;
 const DISCHARGE_THRESHOLD: u64 = 10;
@@ -185,9 +186,12 @@ fn monitor_voltage() {
     let mut tfd = TimerFd::new(ClockId::CLOCK_MONOTONIC, TimerFlags::empty())
         .expect("TimerFd create failed");
 
+    // 修复点2：
+    // 1. 给 Duration 加上 .into() 转换为 TimeSpec
+    // 2. 将 TimerFlags::empty() 替换为 TimerSetTimeFlags::empty()
     tfd.set(
-        Expiration::Interval(Duration::from_secs(LONG_SLEEP)),
-        TimerFlags::empty(),
+        Expiration::Interval(Duration::from_secs(LONG_SLEEP).into()),
+        TimerSetTimeFlags::empty(),
     )
     .expect("TimerFd set failed");
 
@@ -316,6 +320,7 @@ fn read_config_bool(config_path: &str, key: &str, default: bool) -> bool {
 
 fn handle_counter() -> i64 {
     let reboot_count = read_sys_file_i64(COUNTER_FILE);
+    let = read_sys_file_i64(COUNTER_FILE);
     let new_count = reboot_count + 1;
     let _ = fs::write(COUNTER_FILE, new_count.to_string());
     new_count
