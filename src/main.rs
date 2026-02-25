@@ -181,7 +181,7 @@ fn monitor_voltage() {
         let loop_start = SystemTime::now();
 
         let charge_counter_raw = read_sys_file_i64(&format!("{}/charge_counter", BATTERY_PATH));
-        let charge_counter_mah = charge_counter_raw;
+        let charge_counter_mah = charge_counter_raw; // 和shell保持一致，直接使用原始值
         let capacity = read_sys_file_i64(&format!("{}/capacity", BATTERY_PATH));
         let charging_status = read_sys_file(&format!("{}/status", BATTERY_PATH));
 
@@ -246,13 +246,15 @@ fn monitor_voltage() {
             match (last_status.as_str(), charging_status.as_str()) {
                 ("Discharging", "Charging") => {
                     let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前容量:{}mAh | 最大容量:{}mAh", capacity, charge_counter_mah, max_charge_counter_mah));
+                    // 修正：补全当前电池容量，文案和shell一致
+                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", capacity, charge_counter_mah, max_charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Charging", "Discharging") => {
                     let level = calculate_level();
                     let _ = Command::new("dumpsys").args(&["battery", "set", "level", &level.to_string()]).output();
-                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 最大容量:{}mAh", level, capacity, max_charge_counter_mah));
+                    // 修正：补全当前电池容量，文案和shell一致
+                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", level, capacity, charge_counter_mah, max_charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Discharging", "Discharging") => {
@@ -260,7 +262,8 @@ fn monitor_voltage() {
                     if discharge_counter % DISCHARGE_THRESHOLD == 0 {
                         let level = calculate_level();
                         let _ = Command::new("dumpsys").args(&["battery", "set", "level", &level.to_string()]).output();
-                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 最大容量:{}mAh", level, capacity, max_charge_counter_mah));
+                        // 修正：补全当前电池容量，文案和shell一致
+                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", level, capacity, charge_counter_mah, max_charge_counter_mah));
                     }
                 }
                 ("Charging", "Charging") => {}
@@ -269,7 +272,8 @@ fn monitor_voltage() {
         } else {
             if last_status == "Discharging" && charging_status == "Charging" {
                 let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 最大容量:{}mAh", capacity, max_charge_counter_mah));
+                // 修正：补全当前电池容量，文案和shell一致
+                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh | 最大电池容量:{}mAh", capacity, charge_counter_mah, max_charge_counter_mah));
                 discharge_counter = 0;
             }
         }
