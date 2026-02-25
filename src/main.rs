@@ -320,11 +320,11 @@ fn read_config_bool(config_path: &str, key: &str, default: bool) -> bool {
 
 fn handle_counter() -> i64 {
     let reboot_count = read_sys_file_i64(COUNTER_FILE);
-    let = read_sys_file_i64(COUNTER_FILE);
     let new_count = reboot_count + 1;
     let _ = fs::write(COUNTER_FILE, new_count.to_string());
     new_count
 }
+
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
