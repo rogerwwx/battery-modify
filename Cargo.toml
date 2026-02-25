@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 time = { version = "0.3", default-features = false, features = ["formatting", "local-offset", "macros", "std"] }
+nix = { version = "0.28", default-features = false, features = ["time"] }
 
 [target.aarch64-linux-android]
 linker = "aarch64-linux-android-clang"

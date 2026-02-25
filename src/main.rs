@@ -3,12 +3,12 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::Command;
-use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
-// 调整为和Shell一致的常量值
+use nix::sys::timerfd::{TimerFd, ClockId, TimerFlags, Expiration};
+
 const LONG_SLEEP: u64 = 3;
 const DISCHARGE_THRESHOLD: u64 = 10;
 const MAX_RETRY: u32 = 3;
@@ -90,7 +90,7 @@ fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
                 write_log(&format!("命令执行异常: {}", e));
             }
         }
-        sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(1));
     }
     write_log(&format!("执行失败 (尝试 {} 次)", MAX_RETRY));
     false
@@ -108,7 +108,7 @@ fn cancel_countdown() {
     let target_pkg = "com.miui.securitycenter/com.miui.powercenter.provider.PowerSaveService";
     let _ = Command::new("pm").args(&["disable", target_pkg]).output();
 
-    sleep(Duration::from_secs(2));
+    std::thread::sleep(Duration::from_secs(2));
     if let Ok(out) = Command::new("pm").args(&["list", "packages"]).output() {
         let pkg_list = String::from_utf8_lossy(&out.stdout);
         if !pkg_list.contains(target_pkg) {
@@ -119,7 +119,7 @@ fn cancel_countdown() {
 
     write_log("首次禁用失败，尝试重新禁用...");
     let _ = Command::new("pm").args(&["enable", target_pkg]).output();
-    sleep(Duration::from_secs(5));
+    std::thread::sleep(Duration::from_secs(5));
     let _ = Command::new("pm").args(&["disable", target_pkg]).output();
 
     if let Ok(out_final) = Command::new("pm").args(&["list", "packages"]).output() {
@@ -155,10 +155,12 @@ fn wait_for_batterystats() {
             write_log("等待电池服务启动完成");
             break;
         }
-        sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(1));
     }
 }
 
+/// **长期存在的 TimerFd 版本 monitor_voltage**
+/// 每次循环阻塞等待定时器到期（周期 LONG_SLEEP 秒），然后执行原有检查逻辑。
 fn monitor_voltage() {
     let mut last_status = String::new();
     let mut discharge_counter: u64 = 0;
@@ -171,18 +173,35 @@ fn monitor_voltage() {
         let _ = fs::write(MAX_CHARGE_COUNTER_FILE, max_charge_counter.to_string());
     }
 
-    // 移除初次获取最大容量的日志输出
     let mut max_charge_counter_mah = if max_charge_counter > 20000 {
         max_charge_counter / 1000
     } else {
         max_charge_counter
     };
 
+    // -------------------------------
+    // 创建长期存在的 TimerFd（阻塞）
+    // -------------------------------
+    let mut tfd = TimerFd::new(ClockId::CLOCK_MONOTONIC, TimerFlags::empty())
+        .expect("TimerFd create failed");
+
+    tfd.set(
+        Expiration::Interval(Duration::from_secs(LONG_SLEEP)),
+        TimerFlags::empty(),
+    )
+    .expect("TimerFd set failed");
+
+    // -------------------------------
+    // 主循环：每 3 秒阻塞一次
+    // -------------------------------
     loop {
-        let loop_start = SystemTime::now();
+        // 阻塞等待 3 秒
+        let _ = tfd.wait().expect("TimerFd wait failed");
+
+        // ====== 以下全部是你原来的逻辑 ======
 
         let charge_counter_raw = read_sys_file_i64(&format!("{}/charge_counter", BATTERY_PATH));
-        let charge_counter_mah = charge_counter_raw; // 和shell保持一致，直接使用原始值
+        let charge_counter_mah = charge_counter_raw;
         let capacity = read_sys_file_i64(&format!("{}/capacity", BATTERY_PATH));
         let charging_status = read_sys_file(&format!("{}/status", BATTERY_PATH));
 
@@ -199,7 +218,6 @@ fn monitor_voltage() {
                         } else {
                             max_charge_counter
                         };
-                        // 移除电池首次充满更新最大容量的日志
                     } else if charge_counter_raw != temp_max_charge {
                         max_charge_counter = charge_counter_raw;
                         temp_max_charge = charge_counter_raw;
@@ -209,7 +227,6 @@ fn monitor_voltage() {
                         } else {
                             max_charge_counter
                         };
-                        // 移除持续充满更新最大容量的日志
                     }
                 } else {
                     in_full_state = false;
@@ -230,16 +247,9 @@ fn monitor_voltage() {
             if max_charge_counter == 0 {
                 return 50;
             }
-            let mut level = charge_counter_mah
-                .saturating_mul(100)
-                / max_charge_counter;
-
-            if level <= 0 {
-                level = 5;
-            }
-            if level > 100 {
-                level = 100;
-            }
+            let mut level = charge_counter_mah.saturating_mul(100) / max_charge_counter;
+            if level <= 0 { level = 5; }
+            if level > 100 { level = 100; }
             level
         };
 
@@ -247,46 +257,42 @@ fn monitor_voltage() {
             match (last_status.as_str(), charging_status.as_str()) {
                 ("Discharging", "Charging") => {
                     let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                    // 移除最大电池容量字段，仅保留当前电池容量
-                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh", capacity, charge_counter_mah));
+                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh",
+                        capacity, charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Charging", "Discharging") => {
                     let level = calculate_level();
-                    let _ = Command::new("dumpsys").args(&["battery", "set", "level", &level.to_string()]).output();
-                    // 移除最大电池容量字段，仅保留当前电池容量
-                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh", level, capacity, charge_counter_mah));
+                    let _ = Command::new("dumpsys")
+                        .args(&["battery", "set", "level", &level.to_string()])
+                        .output();
+                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh",
+                        level, capacity, charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Discharging", "Discharging") => {
                     discharge_counter += 1;
                     if discharge_counter % DISCHARGE_THRESHOLD == 0 {
                         let level = calculate_level();
-                        let _ = Command::new("dumpsys").args(&["battery", "set", "level", &level.to_string()]).output();
-                        // 移除最大电池容量字段，仅保留当前电池容量
-                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh", level, capacity, charge_counter_mah));
+                        let _ = Command::new("dumpsys")
+                            .args(&["battery", "set", "level", &level.to_string()])
+                            .output();
+                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh",
+                            level, capacity, charge_counter_mah));
                     }
                 }
-                ("Charging", "Charging") => {}
                 _ => {}
             }
         } else {
             if last_status == "Discharging" && charging_status == "Charging" {
                 let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                // 移除最大电池容量字段，仅保留当前电池容量
-                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh", capacity, charge_counter_mah));
+                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh",
+                    capacity, charge_counter_mah));
                 discharge_counter = 0;
             }
         }
 
         last_status = charging_status;
-
-        let elapsed = SystemTime::now()
-            .duration_since(loop_start)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        let remaining = if LONG_SLEEP > elapsed { LONG_SLEEP - elapsed } else { 1 };
-        sleep(Duration::from_secs(remaining));
     }
 }
 
