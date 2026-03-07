@@ -3,7 +3,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::Command;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use time::{format_description::FormatItem, macros::format_description, OffsetDateTime};
 
@@ -24,41 +24,63 @@ const BRIGHTNESS_PATHS: &[&str] = &[
 const COUNTER_FILE: &str = "/data/adb/battery_calibrate.counter";
 const MAX_CHARGE_COUNTER_FILE: &str = "/data/adb/battery_max_charge_counter";
 
+// 日志清理核心配置（仅保留时间间隔，路径改为动态）
+const LOG_CLEAN_INTERVAL_SECS: u64 = 3 * 24 * 60 * 60; // 3天 = 259200秒
+
 static TIME_FMT: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+
+// 获取当前Unix时间戳（秒）
+fn get_current_unix_ts() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::from_secs(0))
+        .as_secs()
+}
+
+// 读取最后一次清理的时间戳（动态路径：程序根目录下）
+fn read_last_clean_ts(mod_dir: &str) -> u64 {
+    let last_clean_file = format!("{}/battery_calibrate.last_clean", mod_dir);
+    fs::read_to_string(last_clean_file)
+        .unwrap_or_default()
+        .trim()
+        .parse::<u64>()
+        .unwrap_or(0)
+}
+
+// 更新最后一次清理的时间戳（动态路径：程序根目录下）
+fn update_last_clean_ts(mod_dir: &str) {
+    let current_ts = get_current_unix_ts();
+    let last_clean_file = format!("{}/battery_calibrate.last_clean", mod_dir);
+    let _ = fs::write(last_clean_file, current_ts.to_string());
+}
+
+// 强制清空日志文件（无任何额外写入）
+fn force_clean_log() {
+    // 直接创建空文件覆盖原有日志，无任何写入操作
+    let _ = File::create(LOG_FILE);
+}
+
+// 检查是否需要执行3天一次的日志清理（仅启动时执行，动态路径）
+fn check_and_clean_log_periodically(mod_dir: &str) {
+    let last_clean_ts = read_last_clean_ts(mod_dir);
+    let current_ts = get_current_unix_ts();
+    let time_diff = current_ts.saturating_sub(last_clean_ts);
+
+    // 仅当时间差≥3天时，执行清理，否则无任何操作
+    if time_diff >= LOG_CLEAN_INTERVAL_SECS {
+        force_clean_log();
+        update_last_clean_ts(mod_dir); // 清理后更新时间戳（程序根目录）
+    }
+}
 
 fn now() -> String {
     let dt = OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc());
     dt.format(TIME_FMT).unwrap_or_else(|_| "time_err".to_string())
 }
 
-fn truncate_log_keep_last(log_path: &str, keep_lines: usize) {
-    if let Ok(file) = File::open(log_path) {
-        let reader = BufReader::new(file);
-        let mut dq: VecDeque<String> = VecDeque::with_capacity(keep_lines + 10);
-        for line in reader.lines() {
-            if let Ok(l) = line {
-                if dq.len() == keep_lines {
-                    dq.pop_front();
-                }
-                dq.push_back(l);
-            }
-        }
-        if let Ok(mut f) = File::create(log_path) {
-            for l in dq {
-                let _ = writeln!(f, "{}", l);
-            }
-            let _ = writeln!(f, "[{}] 日志文件超过5MB，已截断保留最新内容", now());
-        }
-    }
-}
-
+// 简化后的写日志函数（移除所有截断逻辑）
 fn write_log(msg: &str) {
-    if let Ok(metadata) = fs::metadata(LOG_FILE) {
-        if metadata.len() >= 5 * 1024 * 1024 {
-            truncate_log_keep_last(LOG_FILE, 1000);
-        }
-    }
     if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(LOG_FILE) {
         let _ = writeln!(f, "[{}] {}", now(), msg);
     }
@@ -202,7 +224,7 @@ fn monitor_voltage() {
         // 阻塞等待 3 秒
         let _ = tfd.wait().expect("TimerFd wait failed");
 
-        // ====== 以下全部是你原来的逻辑 ======
+        // ====== 以下全部是你原来的逻辑（新增最大容量输出） ======
 
         let charge_counter_raw = read_sys_file_i64(&format!("{}/charge_counter", BATTERY_PATH));
         let charge_counter_mah = charge_counter_raw;
@@ -261,8 +283,9 @@ fn monitor_voltage() {
             match (last_status.as_str(), charging_status.as_str()) {
                 ("Discharging", "Charging") => {
                     let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh",
-                        capacity, charge_counter_mah));
+                    // 新增：当前电池最大容量 + 当前电池容量
+                    write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
+                        capacity, max_charge_counter_mah, charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Charging", "Discharging") => {
@@ -270,8 +293,9 @@ fn monitor_voltage() {
                     let _ = Command::new("dumpsys")
                         .args(&["battery", "set", "level", &level.to_string()])
                         .output();
-                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh",
-                        level, capacity, charge_counter_mah));
+                    // 新增：当前电池最大容量 + 当前电池容量
+                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
+                        level, capacity, max_charge_counter_mah, charge_counter_mah));
                     discharge_counter = 0;
                 }
                 ("Discharging", "Discharging") => {
@@ -281,8 +305,9 @@ fn monitor_voltage() {
                         let _ = Command::new("dumpsys")
                             .args(&["battery", "set", "level", &level.to_string()])
                             .output();
-                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池容量:{}mAh",
-                            level, capacity, charge_counter_mah));
+                        // 新增：当前电池最大容量 + 当前电池容量
+                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
+                            level, capacity, max_charge_counter_mah, charge_counter_mah));
                     }
                 }
                 _ => {}
@@ -290,8 +315,9 @@ fn monitor_voltage() {
         } else {
             if last_status == "Discharging" && charging_status == "Charging" {
                 let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池容量:{}mAh",
-                    capacity, charge_counter_mah));
+                // 新增：当前电池最大容量 + 当前电池容量
+                write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
+                    capacity, max_charge_counter_mah, charge_counter_mah));
                 discharge_counter = 0;
             }
         }
@@ -325,7 +351,6 @@ fn handle_counter() -> i64 {
     new_count
 }
 
-
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let mod_dir = if args.len() > 1 {
@@ -334,6 +359,9 @@ fn main() {
         "/data/adb/modules/battery_module".to_string()
     };
     let config_file = format!("{}/config.conf", mod_dir);
+
+    // 仅启动时检查一次日志清理（时间戳文件在程序根目录）
+    check_and_clean_log_periodically(&mod_dir);
 
     let enable_monitor = read_config_bool(&config_file, "ENABLE_MONITOR", true);
     let enable_temp_comp = read_config_bool(&config_file, "ENABLE_TEMP_COMP", true);
