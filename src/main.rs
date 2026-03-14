@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write, BufWriter};
 use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -80,11 +80,14 @@ fn now() -> String {
 }
 
 // 简化后的写日志函数（移除所有截断逻辑）
+
 fn write_log(msg: &str) {
-    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(LOG_FILE) {
-        let _ = writeln!(f, "[{}] {}", now(), msg);
+    if let Ok(f) = OpenOptions::new().create(true).append(true).open(LOG_FILE) {
+        let mut writer = BufWriter::new(f);
+        let _ = writeln!(writer, "[{}] {}", now(), msg);
     }
 }
+
 
 fn read_sys_file(path: &str) -> String {
     fs::read_to_string(path).unwrap_or_default().trim().to_string()
@@ -99,18 +102,13 @@ fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
     for _ in 0..MAX_RETRY {
         match Command::new(cmd).args(args).output() {
             Ok(output) => {
-                let status_success = output.status.success();
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let out_str = format!("{}{}", stdout, stderr).trim().to_string();
-                write_log(&format!("命令输出: {}", out_str));
-                if status_success {
+                if output.status.success() {
                     write_log("执行成功");
                     return true;
                 }
             }
-            Err(e) => {
-                write_log(&format!("命令执行异常: {}", e));
+            Err(_) => {
+                write_log("命令执行异常");
             }
         }
         std::thread::sleep(Duration::from_secs(1));
@@ -118,6 +116,7 @@ fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
     write_log(&format!("执行失败 (尝试 {} 次)", MAX_RETRY));
     false
 }
+
 
 fn get_prop(prop: &str) -> String {
     match Command::new("getprop").arg(prop).output() {
