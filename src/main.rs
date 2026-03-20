@@ -99,7 +99,7 @@ fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
     for _ in 0..MAX_RETRY {
         match Command::new(cmd).args(args).output() {
             Ok(output) => {
-                if status_success {
+                if output.status.success() {
                     write_log("执行成功");
                     return true;
                 }
