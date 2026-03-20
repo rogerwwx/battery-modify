@@ -99,11 +99,6 @@ fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
     for _ in 0..MAX_RETRY {
         match Command::new(cmd).args(args).output() {
             Ok(output) => {
-                let status_success = output.status.success();
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let out_str = format!("{}{}", stdout, stderr).trim().to_string();
-                write_log(&format!("命令输出: {}", out_str));
                 if status_success {
                     write_log("执行成功");
                     return true;
@@ -216,8 +211,7 @@ fn monitor_voltage() {
         let _ = tfd.wait().expect("TimerFd wait failed");
 
         // 从 sysfs 读取当前 charge_counter（厂商新版本可能以 µAh 输出），直接除以 1000 转为 mAh
-        let charge_counter_raw = read_sys_file_i64(&format!("{}/charge_counter", BATTERY_PATH));
-        let charge_counter_mah = charge_counter_raw / 1000;
+        let charge_counter_mah = read_sys_file_i64(&format!("{}/charge_counter", BATTERY_PATH));
 
         let capacity = read_sys_file_i64(&format!("{}/capacity", BATTERY_PATH));
         let charging_status = read_sys_file(&format!("{}/status", BATTERY_PATH));
@@ -258,7 +252,7 @@ fn monitor_voltage() {
                 return 50;
             }
             let mut level = charge_counter_mah.saturating_mul(100) / max_charge_counter;
-            if level <= 0 { level = 5; }
+            if level <= 0 { level = 1; }
             if level > 100 { level = 100; }
             level
         };
