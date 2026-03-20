@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write, BufWriter};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -80,14 +80,11 @@ fn now() -> String {
 }
 
 // 简化后的写日志函数（移除所有截断逻辑）
-
 fn write_log(msg: &str) {
-    if let Ok(f) = OpenOptions::new().create(true).append(true).open(LOG_FILE) {
-        let mut writer = BufWriter::new(f);
-        let _ = writeln!(writer, "[{}] {}", now(), msg);
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(LOG_FILE) {
+        let _ = writeln!(f, "[{}] {}", now(), msg);
     }
 }
-
 
 fn read_sys_file(path: &str) -> String {
     fs::read_to_string(path).unwrap_or_default().trim().to_string()
@@ -102,13 +99,18 @@ fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
     for _ in 0..MAX_RETRY {
         match Command::new(cmd).args(args).output() {
             Ok(output) => {
-                if output.status.success() {
+                let status_success = output.status.success();
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let out_str = format!("{}{}", stdout, stderr).trim().to_string();
+                write_log(&format!("命令输出: {}", out_str));
+                if status_success {
                     write_log("执行成功");
                     return true;
                 }
             }
-            Err(_) => {
-                write_log("命令执行异常");
+            Err(e) => {
+                write_log(&format!("命令执行异常: {}", e));
             }
         }
         std::thread::sleep(Duration::from_secs(1));
@@ -116,7 +118,6 @@ fn log_exec(desc: &str, cmd: &str, args: &[&str]) -> bool {
     write_log(&format!("执行失败 (尝试 {} 次)", MAX_RETRY));
     false
 }
-
 
 fn get_prop(prop: &str) -> String {
     match Command::new("getprop").arg(prop).output() {
@@ -189,44 +190,35 @@ fn monitor_voltage() {
     let mut in_full_state = false;
     let mut temp_max_charge: i64 = 0;
 
+    // 读取已保存的最大容量（假定文件中存的是 mAh）
     let mut max_charge_counter = read_sys_file_i64(MAX_CHARGE_COUNTER_FILE);
     if max_charge_counter == 0 {
-        max_charge_counter = read_sys_file_i64(&format!("{}/charge_full", BATTERY_PATH));
+        // 从 sysfs 读取 charge_full（厂商新版本可能以 µAh 输出），直接除以 1000 转为 mAh
+        max_charge_counter = read_sys_file_i64(&format!("{}/charge_full", BATTERY_PATH)) / 1000;
         let _ = fs::write(MAX_CHARGE_COUNTER_FILE, max_charge_counter.to_string());
     }
 
-    let mut max_charge_counter_mah = if max_charge_counter > 20000 {
-        max_charge_counter / 1000
-    } else {
-        max_charge_counter
-    };
+    // 直接使用 mAh 值
+    let mut max_charge_counter_mah = max_charge_counter;
 
-    // -------------------------------
     // 创建长期存在的 TimerFd（阻塞）
-    // -------------------------------
     let mut tfd = TimerFd::new(ClockId::CLOCK_MONOTONIC, TimerFlags::empty())
         .expect("TimerFd create failed");
 
-    // 修复点2：
-    // 1. 给 Duration 加上 .into() 转换为 TimeSpec
-    // 2. 将 TimerFlags::empty() 替换为 TimerSetTimeFlags::empty()
     tfd.set(
         Expiration::Interval(Duration::from_secs(LONG_SLEEP).into()),
         TimerSetTimeFlags::empty(),
     )
     .expect("TimerFd set failed");
 
-    // -------------------------------
-    // 主循环：每 3 秒阻塞一次
-    // -------------------------------
     loop {
-        // 阻塞等待 3 秒
+        // 阻塞等待 LONG_SLEEP 秒
         let _ = tfd.wait().expect("TimerFd wait failed");
 
-        // ====== 以下全部是你原来的逻辑（新增最大容量输出） ======
-
+        // 从 sysfs 读取当前 charge_counter（厂商新版本可能以 µAh 输出），直接除以 1000 转为 mAh
         let charge_counter_raw = read_sys_file_i64(&format!("{}/charge_counter", BATTERY_PATH));
-        let charge_counter_mah = charge_counter_raw;
+        let charge_counter_mah = charge_counter_raw / 1000;
+
         let capacity = read_sys_file_i64(&format!("{}/capacity", BATTERY_PATH));
         let charging_status = read_sys_file(&format!("{}/status", BATTERY_PATH));
 
@@ -234,24 +226,17 @@ fn monitor_voltage() {
             "Not charging" | "Full" => {
                 if capacity == 100 {
                     if !in_full_state {
-                        max_charge_counter = charge_counter_raw;
+                        // 记录当前最大容量（以 mAh 存储）
+                        max_charge_counter = charge_counter_mah;
                         let _ = fs::write(MAX_CHARGE_COUNTER_FILE, max_charge_counter.to_string());
-                        temp_max_charge = charge_counter_raw;
+                        temp_max_charge = charge_counter_mah;
                         in_full_state = true;
-                        max_charge_counter_mah = if max_charge_counter > 20000 {
-                            max_charge_counter / 1000
-                        } else {
-                            max_charge_counter
-                        };
-                    } else if charge_counter_raw != temp_max_charge {
-                        max_charge_counter = charge_counter_raw;
-                        temp_max_charge = charge_counter_raw;
+                        max_charge_counter_mah = max_charge_counter;
+                    } else if charge_counter_mah != temp_max_charge {
+                        max_charge_counter = charge_counter_mah;
+                        temp_max_charge = charge_counter_mah;
                         let _ = fs::write(MAX_CHARGE_COUNTER_FILE, max_charge_counter.to_string());
-                        max_charge_counter_mah = if max_charge_counter > 20000 {
-                            max_charge_counter / 1000
-                        } else {
-                            max_charge_counter
-                        };
+                        max_charge_counter_mah = max_charge_counter;
                     }
                 } else {
                     in_full_state = false;
@@ -282,7 +267,6 @@ fn monitor_voltage() {
             match (last_status.as_str(), charging_status.as_str()) {
                 ("Discharging", "Charging") => {
                     let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                    // 新增：当前电池最大容量 + 当前电池容量
                     write_log(&format!("放电→充电 | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
                         capacity, max_charge_counter_mah, charge_counter_mah));
                     discharge_counter = 0;
@@ -292,7 +276,6 @@ fn monitor_voltage() {
                     let _ = Command::new("dumpsys")
                         .args(&["battery", "set", "level", &level.to_string()])
                         .output();
-                    // 新增：当前电池最大容量 + 当前电池容量
                     write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
                         level, capacity, max_charge_counter_mah, charge_counter_mah));
                     discharge_counter = 0;
@@ -304,7 +287,6 @@ fn monitor_voltage() {
                         let _ = Command::new("dumpsys")
                             .args(&["battery", "set", "level", &level.to_string()])
                             .output();
-                        // 新增：当前电池最大容量 + 当前电池容量
                         write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
                             level, capacity, max_charge_counter_mah, charge_counter_mah));
                     }
@@ -314,7 +296,6 @@ fn monitor_voltage() {
         } else {
             if last_status == "Discharging" && charging_status == "Charging" {
                 let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                // 新增：当前电池最大容量 + 当前电池容量
                 write_log(&format!("[息屏]放电→充电 | 系统电量:{}% | 当前电池最大容量:{}mAh | 当前电池容量:{}mAh",
                     capacity, max_charge_counter_mah, charge_counter_mah));
                 discharge_counter = 0;
@@ -324,6 +305,7 @@ fn monitor_voltage() {
         last_status = charging_status;
     }
 }
+
 
 fn read_config_bool(config_path: &str, key: &str, default: bool) -> bool {
     if let Ok(content) = fs::read_to_string(config_path) {
