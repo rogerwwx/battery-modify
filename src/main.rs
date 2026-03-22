@@ -1,6 +1,5 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -15,11 +14,6 @@ const MAX_RETRY: u32 = 3;
 
 const LOG_FILE: &str = "/data/adb/battery_calibrate.log";
 const BATTERY_PATH: &str = "/sys/class/power_supply/battery";
-const BRIGHTNESS_PATHS: &[&str] = &[
-    "/sys/class/backlight/panel0-backlight/brightness",
-    "/sys/class/leds/lcd-backlight/brightness",
-    "/sys/devices/platform/soc/soc:mtk_leds/leds/lcd-backlight/brightness",
-];
 const COUNTER_FILE: &str = "/data/adb/battery_calibrate.counter";
 const MAX_CHARGE_COUNTER_FILE: &str = "/data/adb/battery_max_charge_counter";
 
@@ -188,7 +182,6 @@ fn wait_for_batterystats() {
 fn monitor_voltage() {
     let mut last_status = String::new();
     let mut discharge_counter: u64 = 0;
-    let mut tick_count: u64 = 0; // 用于降低低频数据的读取频率
 
     // 原版的满电状态追踪变量
     let mut in_full_state = false;
@@ -197,14 +190,14 @@ fn monitor_voltage() {
     // 读取历史缓存的最大容量
     let mut cached_max_charge = read_sys_file_i64(MAX_CHARGE_COUNTER_FILE);
 
-    // [优化] 在循环外先获取一次初始的 sys_charge_full 基准值
-    let mut sys_charge_full = read_sys_file_i64(&format!("{}/charge_full", BATTERY_PATH));
-    if sys_charge_full > 100_000 {
-        sys_charge_full /= 1000;
+    // 初始化：如果没有历史缓存，则获取一次初始的 charge_full 作为基准值
+    if cached_max_charge <= 0 {
+        let mut init_full = read_sys_file_i64(&format!("{}/charge_full", BATTERY_PATH));
+        if init_full > 100_000 {
+            init_full /= 1000;
+        }
+        cached_max_charge = if init_full > 0 { init_full } else { 4000 }; // 极端情况兜底
     }
-    if sys_charge_full <= 0 {
-        sys_charge_full = 4000;
-    } // 极端情况兜底
 
     // 创建长期存在的 TimerFd（阻塞）
     let tfd =
@@ -219,9 +212,8 @@ fn monitor_voltage() {
     loop {
         // 阻塞等待 LONG_SLEEP 秒
         let _ = tfd.wait().expect("TimerFd wait failed");
-        tick_count = tick_count.wrapping_add(1);
 
-        // 1. [高频数据] 每 3 秒必须动态获取的实时变动数据
+        // 1.[高频数据] 每 3 秒必须动态获取的实时变动数据
         let mut sys_charge_counter = read_sys_file_i64(&format!("{}/charge_counter", BATTERY_PATH));
         if sys_charge_counter > 100_000 {
             sys_charge_counter /= 1000;
@@ -230,18 +222,15 @@ fn monitor_voltage() {
         let capacity = read_sys_file_i64(&format!("{}/capacity", BATTERY_PATH));
         let charging_status = read_sys_file(&format!("{}/status", BATTERY_PATH));
 
-        // 2. [低频数据] 根据用户建议，仅在达到 DISCHARGE_THRESHOLD (约 30 秒) 时才读取一次 charge_full，减少 I/O 损耗
-        if tick_count % DISCHARGE_THRESHOLD == 0 {
+        // 2. [低频数据] 优化：仅在充电且电量 ≥ 95% 时才读取 charge_full 修正最大容量，减少 I/O
+        if charging_status == "Charging" && capacity >= 95 {
             let raw_charge_full = read_sys_file_i64(&format!("{}/charge_full", BATTERY_PATH));
             if raw_charge_full > 100_000 {
-                sys_charge_full = raw_charge_full / 1000;
+                cached_max_charge = raw_charge_full / 1000; // 直接覆盖
             } else if raw_charge_full > 0 {
-                sys_charge_full = raw_charge_full;
+                cached_max_charge = raw_charge_full; // 直接覆盖
             }
         }
-
-        // 本次循环使用的最终最大容量
-        let mut current_max_charge;
 
         // 3. 核心：完美保留原版的手动校准逻辑 (追踪涓流充电峰值，依赖高频的 sys_charge_counter)
         match charging_status.as_str() {
@@ -257,39 +246,19 @@ fn monitor_voltage() {
                         temp_max_charge = sys_charge_counter;
                         let _ = fs::write(MAX_CHARGE_COUNTER_FILE, cached_max_charge.to_string());
                     }
-                    current_max_charge = cached_max_charge;
                 } else {
                     in_full_state = false;
-                    current_max_charge = cached_max_charge;
                 }
             }
             _ => {
                 in_full_state = false;
-                current_max_charge = cached_max_charge;
             }
         }
 
-        // 4. 解决“死板缓存”问题 (弹性同步机制)
-        // 使用降频读取的 sys_charge_full 来校验缓存是否已严重偏离底层实际数据
-        if current_max_charge <= 0 || (current_max_charge - sys_charge_full).abs() > 200 {
-            current_max_charge = sys_charge_full;
-            cached_max_charge = sys_charge_full;
-        }
+        // 本次循环使用的最终最大容量
+        let current_max_charge = cached_max_charge;
 
-        // 防御性安全校验
-        if current_max_charge <= 0 {
-            current_max_charge = 4000;
-        }
-
-        let mut brightness = 0i64;
-        for path in BRIGHTNESS_PATHS {
-            if Path::new(path).exists() {
-                brightness = read_sys_file_i64(path);
-                break;
-            }
-        }
-
-        // 5. 使用正确的实时变量进行百分比计算
+        // 4. 使用正确的实时变量进行百分比计算
         let calculate_level = || -> i64 {
             let mut level = sys_charge_counter.saturating_mul(100) / current_max_charge;
             if level <= 0 {
@@ -301,47 +270,38 @@ fn monitor_voltage() {
             level
         };
 
-        if brightness > 0 {
-            match (last_status.as_str(), charging_status.as_str()) {
-                ("Discharging", "Charging") => {
-                    let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
-                    write_log(&format!(
-                        "放电→充电 | 系统电量:{}% | 动态最大容量:{}mAh | 当前容量:{}mAh",
-                        capacity, current_max_charge, sys_charge_counter
-                    ));
-                    discharge_counter = 0;
-                }
-                ("Charging", "Discharging") => {
-                    let level = calculate_level();
-                    let _ = Command::new("dumpsys")
-                        .args(&["battery", "set", "level", &level.to_string()])
-                        .output();
-                    write_log(&format!("充电→放电 | 更新电量:{}% | 系统电量:{}% | 动态最大容量:{}mAh | 当前容量:{}mAh",
-                        level, capacity, current_max_charge, sys_charge_counter));
-                    discharge_counter = 0;
-                }
-                ("Discharging", "Discharging") => {
-                    discharge_counter += 1;
-                    if discharge_counter % DISCHARGE_THRESHOLD == 0 {
-                        let level = calculate_level();
-                        let _ = Command::new("dumpsys")
-                            .args(&["battery", "set", "level", &level.to_string()])
-                            .output();
-                        write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 动态最大容量:{}mAh | 当前容量:{}mAh",
-                            level, capacity, current_max_charge, sys_charge_counter));
-                    }
-                }
-                _ => {}
-            }
-        } else {
-            if last_status == "Discharging" && charging_status == "Charging" {
+        match (last_status.as_str(), charging_status.as_str()) {
+            ("Discharging", "Charging") => {
                 let _ = Command::new("dumpsys").args(&["battery", "reset"]).output();
                 write_log(&format!(
-                    "[息屏]放电→充电 | 系统电量:{}% | 动态最大容量:{}mAh | 当前容量:{}mAh",
+                    "放电→充电 | 系统电量:{}% | 动态最大容量:{}mAh | 当前容量:{}mAh",
                     capacity, current_max_charge, sys_charge_counter
                 ));
                 discharge_counter = 0;
             }
+            ("Charging", "Discharging") => {
+                let level = calculate_level();
+                let _ = Command::new("dumpsys")
+                    .args(&["battery", "set", "level", &level.to_string()])
+                    .output();
+                write_log(&format!(
+                    "充电→放电 | 更新电量:{}% | 系统电量:{}% | 动态最大容量:{}mAh | 当前容量:{}mAh",
+                    level, capacity, current_max_charge, sys_charge_counter
+                ));
+                discharge_counter = 0;
+            }
+            ("Discharging", "Discharging") => {
+                discharge_counter += 1;
+                if discharge_counter % DISCHARGE_THRESHOLD == 0 {
+                    let level = calculate_level();
+                    let _ = Command::new("dumpsys")
+                        .args(&["battery", "set", "level", &level.to_string()])
+                        .output();
+                    write_log(&format!("持续放电 | 更新电量:{}% | 系统电量:{}% | 动态最大容量:{}mAh | 当前容量:{}mAh",
+                        level, capacity, current_max_charge, sys_charge_counter));
+                }
+            }
+            _ => {}
         }
 
         last_status = charging_status;
