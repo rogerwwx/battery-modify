@@ -22,8 +22,10 @@ const V_MEDIAN_WINDOW: usize = 5;
 const KERNEL_GLITCH_JUMP: f64 = 8.0;
 /// 毛刺确认：与暂存值相差 ≤3 才接受
 const KERNEL_GLITCH_CONFIRM: f64 = 3.0;
-/// 放电时内核电量高出电压百分比超过该值则不再完全信任内核
-const KERNEL_TRUST_GAP: f64 = 20.0;
+/// 放电时内核与电压偏差超过该值视为小板异常，回落纯电压
+const KERNEL_SANITY_GAP: f64 = 25.0;
+/// 内核电量累计漂移达到该值视为“在动”（RM/FCC 是连续量，不能按 1% 整数跳变判断）
+const KERNEL_MOVE_EPS: f64 = 0.5;
 /// 安全阀解除回差(mV)
 const VALVE_HYST_MV: i64 = 150;
 
@@ -116,7 +118,7 @@ pub fn run(cfg: &Config) {
 
     let mut relax_until: u64 = 0;
     let mut last_k_move: u64 = get_current_unix_ts();
-    let mut prev_k: Option<f64> = None;
+    let mut k_mark: Option<f64> = None;
     let mut k_accepted: Option<f64> = None;
     let mut k_pending: Option<f64> = None;
 
@@ -170,7 +172,7 @@ pub fn run(cfg: &Config) {
                     }
                     Mode::Charging => {
                         last_k_move = now_ts;
-                        prev_k = None;
+                        k_mark = None;
                         post_full_idle = false;
                         valve_count = 0;
                         valve_active = false;
@@ -256,11 +258,21 @@ pub fn run(cfg: &Config) {
         }
 
         // ---- 内核电量活跃度跟踪（所有模式通用，卡死检测）----
+        // RM/FCC 是连续量，每拍只漂移零点几个百分点；
+        // 按“累计漂移 ≥0.5%”判断在动，避免把正常漂移误判成卡死
         if let Some(k) = k_pct {
-            if prev_k.map_or(true, |p| (k - p).abs() >= 1.0) {
-                last_k_move = now_ts;
+            match k_mark {
+                None => {
+                    k_mark = Some(k);
+                    last_k_move = now_ts;
+                }
+                Some(m) => {
+                    if (k - m).abs() >= KERNEL_MOVE_EPS {
+                        k_mark = Some(k);
+                        last_k_move = now_ts;
+                    }
+                }
             }
-            prev_k = Some(k);
         }
         let stuck = now_ts.saturating_sub(last_k_move) > cfg.stuck_timeout_secs;
 
@@ -273,15 +285,19 @@ pub fn run(cfg: &Config) {
         } else {
             match mode {
                 Mode::Discharging => {
+                    // 以电压模拟为准，内核做下限保护（max）；
+                    // 内核缺失、卡死或与电压偏差离谱（小板异常）时不参与融合
+                    let k_ok = match k_pct {
+                        Some(k) => !stuck && (k - v_pct).abs() <= KERNEL_SANITY_GAP,
+                        None => false,
+                    };
                     if in_relax {
-                        // 拔线弛豫窗口：直接跟随内核，吸收表面电荷导致的电压虚高
+                        // 拔线弛豫窗口：电压被表面电荷抬高，暂以内核为准
                         k_pct.unwrap_or(v_pct)
+                    } else if k_ok {
+                        v_pct.max(k_pct.unwrap())
                     } else {
-                        match k_pct {
-                            // 内核长期不动（卡死）或远高于电压时不再完全采信，回到纯电压
-                            Some(k) if !stuck && k - v_pct <= KERNEL_TRUST_GAP => k.max(v_pct),
-                            _ => v_pct,
-                        }
+                        v_pct
                     }
                 }
                 Mode::Charging => match k_pct {
@@ -362,7 +378,7 @@ pub fn run(cfg: &Config) {
             force_publish = false;
             smoother::save(sm.smooth, &status_str);
             write_log(&format!(
-                "set level {} | {} smooth={:.1} target={:.1} v={:.1}%(补偿{}mV/裸{}mV) k={:?}{}{}{}",
+                "set level {} | {} smooth={:.1} target={:.1} v={:.1}%(补偿{}mV/裸{}mV) k={:.1} rm={:.0}/fcc={:.0}mAh{}{}{}",
                 lvl,
                 mode.name(),
                 sm.smooth,
@@ -370,7 +386,9 @@ pub fn run(cfg: &Config) {
                 v_pct,
                 v_comp_mv,
                 v_mv_raw,
-                k_pct,
+                k_pct.unwrap_or(-1.0),
+                rd.rm_mah.unwrap_or(0.0),
+                rd.fcc_mah.unwrap_or(0.0),
                 if stuck { " [内核不动]" } else { "" },
                 if valve_active { " [安全阀]" } else { "" },
                 if in_relax { " [弛豫]" } else { "" },

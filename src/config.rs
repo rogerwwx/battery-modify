@@ -92,7 +92,7 @@ impl Config {
             charge_v_cap: get_f64(&content, "CHARGE_V_CAP", 96.0).clamp(50.0, 100.0),
             relax_secs: get_u64(&content, "RELAX_AFTER_UNPLUG_SECS", 300),
             stuck_timeout_secs: get_u64(&content, "KERNEL_STUCK_TIMEOUT_SECS", 900),
-            rate_dis_down: get_u64(&content, "RATE_DISCHARGE_DOWN_SECS", 120).max(3),
+            rate_dis_down: get_u64(&content, "RATE_DISCHARGE_DOWN_SECS", 60).max(3),
             rate_dis_up: get_u64(&content, "RATE_DISCHARGE_UP_SECS", 180).max(3),
             rate_charge: get_u64(&content, "RATE_CHARGE_UP_SECS", 45).max(3),
             rate_charge_stuck: get_u64(&content, "RATE_CHARGE_STUCK_SECS", 300).max(3),
