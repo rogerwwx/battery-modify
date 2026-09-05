@@ -5,7 +5,7 @@ Android (Magisk 模块) 电量接管守护进程：用电池电压模拟电量�
 
 ## 工作原理
 
-- 按 `POLL_SECS`（默认 10s）轮询读取 `voltage_now` / `current_now` / `status` / RM / FCC（节点自动探测，兼容 `/sys/class/power_supply/bms/`）
+- 按 `POLL_SECS`（默认 10s）轮询读取 `voltage_now` / `current_now` / `status` / RM / FCC（节点按实机写死：`/sys/class/power_supply/battery/` 下的 `voltage_now`/`current_now`/`charge_counter`/`charge_full`）
 - 放电时按内阻做负载补偿（`v + |I|×R`），查分段线性表得 voltage_percent，经中位数+EMA 降噪
 - kernel_percent = RM × 100 / FCC，带毛刺拒绝（单拍跳变 >8% 需下一拍确认）
 - 放电：`target = max(voltage_percent, kernel_percent)`；内核电量长期不动或高出电压过多时回落到纯电压
@@ -42,10 +42,10 @@ Android (Magisk 模块) 电量接管守护进程：用电池电压模拟电量�
 | CURRENT_SIGN | 0 | 电流符号：0=自动 1=正为充电 -1=正为放电 |
 | CALIB_LOG | false | 放电时每拍打点 `v_comp`/`k`，用于拟合 V_CURVE |
 
-默认 V_CURVE 按 3.00V~4.45V 体系的锂电池典型 OCV 给出：
+默认 V_CURVE 按 3.00V~4.45V 体系的锂电池典型 OCV 给出，中段已按实机锚点（补偿后 3.933V ≈ 55%）校准：
 
 ```
-V_CURVE=3050:0,3200:1,3350:3,3450:5,3550:9,3650:15,3750:24,3800:30,3850:36,3900:43,3950:50,4000:57,4050:63,4100:70,4150:76,4200:82,4250:87,4300:91,4350:95,4400:98,4450:100
+V_CURVE=3050:0,3180:1,3350:3,3470:5,3620:10,3700:15,3760:20,3810:30,3855:40,3910:50,3960:60,4000:68,4040:75,4090:82,4150:88,4200:92,4250:95,4300:97,4350:98,4400:99,4450:100
 ```
 
 曲线校准：`CALIB_LOG=true` 后完整放电一次，用日志里 `v_comp` 与 `k` 的对应关系替换 V_CURVE，再关闭打点。

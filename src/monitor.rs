@@ -60,17 +60,22 @@ fn kernel_pct(r: &Reading) -> Option<f64> {
     }
 }
 
-/// 读取系统当前显示电量（仅用于接管初始化，防开机跳变）
+/// 读取系统当前显示电量（仅用于接管初始化，防开机跳变）。
+/// 开机早期 dumpsys 可能未就绪，重试至多 10 次。
 fn read_displayed_level() -> Option<i64> {
-    let out = Command::new("dumpsys").arg("battery").output().ok()?;
-    let s = String::from_utf8_lossy(&out.stdout);
-    for line in s.lines() {
-        let t = line.trim();
-        if let Some(rest) = t.strip_prefix("level:") {
-            if let Ok(v) = rest.trim().parse::<i64>() {
-                return Some(v);
+    for _ in 0..10 {
+        if let Ok(out) = Command::new("dumpsys").arg("battery").output() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            for line in s.lines() {
+                let t = line.trim();
+                if let Some(rest) = t.strip_prefix("level:") {
+                    if let Ok(v) = rest.trim().parse::<i64>() {
+                        return Some(v);
+                    }
+                }
             }
         }
+        std::thread::sleep(Duration::from_secs(2));
     }
     None
 }
@@ -267,11 +272,18 @@ pub fn run(cfg: &Config) {
             cfg.min_percent as f64
         } else {
             match mode {
-                Mode::Discharging => match k_pct {
-                    // 内核长期不动（卡死）或远高于电压时不再完全采信，回到纯电压
-                    Some(k) if !stuck && k - v_pct <= KERNEL_TRUST_GAP => k.max(v_pct),
-                    _ => v_pct,
-                },
+                Mode::Discharging => {
+                    if in_relax {
+                        // 拔线弛豫窗口：直接跟随内核，吸收表面电荷导致的电压虚高
+                        k_pct.unwrap_or(v_pct)
+                    } else {
+                        match k_pct {
+                            // 内核长期不动（卡死）或远高于电压时不再完全采信，回到纯电压
+                            Some(k) if !stuck && k - v_pct <= KERNEL_TRUST_GAP => k.max(v_pct),
+                            _ => v_pct,
+                        }
+                    }
+                }
                 Mode::Charging => match k_pct {
                     Some(k) if !stuck => k,
                     // 内核卡死兜底：电压死推但封顶，防 CV 阶段虚高冲 100

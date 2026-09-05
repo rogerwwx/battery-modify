@@ -78,7 +78,31 @@ fn wait_for_batterystats() {
     }
 }
 
+/// 单实例保护：防止脚本重复启动导致双实例互相打架（重复 set level、日志双份）
+fn acquire_single_instance() -> bool {
+    let pid_file = "/data/adb/battery_calibrate.pid";
+    if let Ok(s) = fs::read_to_string(pid_file) {
+        if let Ok(old) = s.trim().parse::<i32>() {
+            if old > 0 {
+                if let Ok(exe) = fs::read_link(format!("/proc/{}/exe", old)) {
+                    let exe = exe.to_string_lossy();
+                    if exe.contains("battery_service") || exe.contains("battery_calibrate") {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    let _ = fs::write(pid_file, std::process::id().to_string());
+    true
+}
+
 fn main() {
+    if !acquire_single_instance() {
+        write_log("检测到已有实例运行，本实例退出");
+        return;
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let mod_dir = if args.len() > 1 {
         args[1].clone()
