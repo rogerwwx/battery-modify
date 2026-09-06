@@ -128,13 +128,12 @@ fn main() {
         if cfg.enable_temp_comp { "开启" } else { "禁用" }
     ));
     write_log(&format!(
-        "参数: R={:.0}mΩ | 放电1%每{}s 回升1%每{}s 充电1%每{}s 内核不动1%每{}s 安全阀1%每{}s",
-        cfg.r_mohm, cfg.rate_dis_down, cfg.rate_dis_up, cfg.rate_charge,
-        cfg.rate_charge_stuck, cfg.rate_valve
+        "参数: R={:.0}mΩ | 放电1%每{}s 回升1%每{}s 安全阀1%每{}s",
+        cfg.r_mohm, cfg.rate_dis_down, cfg.rate_dis_up, cfg.rate_valve
     ));
     write_log(&format!(
-        "参数: 轮询={}s 卡死超时={}s 弛豫={}s 安全阀<{}mV 充电电压封顶={:.0}%",
-        cfg.poll_secs, cfg.stuck_timeout_secs, cfg.relax_secs, cfg.valve_mv, cfg.charge_v_cap
+        "参数: 轮询={}s 卡死超时={}s 弛豫={}s 安全阀<{}mV",
+        cfg.poll_secs, cfg.stuck_timeout_secs, cfg.relax_secs, cfg.valve_mv
     ));
 
     write_log("第一步：正在验证Root权限...");

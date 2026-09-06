@@ -125,10 +125,6 @@ pub fn run(cfg: &Config) {
     let mut valve_count: u32 = 0;
     let mut valve_active = false;
 
-    let mut full_count: u32 = 0;
-    let mut full_latched = false;
-    let mut post_full_idle = false;
-
     let mut last_pub_ts: u64 = 0; // 0 = 首个可下发拍立即发布
     let mut force_publish = false;
 
@@ -159,27 +155,25 @@ pub fn run(cfg: &Config) {
                 match mode {
                     Mode::Discharging => {
                         relax_until = now_ts + cfg.relax_secs;
-                        if post_full_idle {
-                            // 满电 reset 后重新接管，显示值即内核真实值
-                            sm.smooth = k_accepted.unwrap_or(sm.smooth);
-                            post_full_idle = false;
-                        }
+                        // 充电期间未接管，系统显示即真实电量：以它为接管起点，不跳变
+                        let displayed = read_displayed_level();
+                        sm.smooth = match displayed {
+                            Some(d) => d as f64,
+                            None => k_accepted.unwrap_or(sm.smooth),
+                        };
+                        k_mark = None;
                         force_publish = true;
                         write_log(&format!(
-                            "切换→放电 | smooth={:.1} k={:?} v={}mV",
-                            sm.smooth, k_accepted, v_mv_raw
+                            "切换→放电 | 接管起点 smooth={:.1}（系统显示 {:?}，内核 {:?}）",
+                            sm.smooth, displayed, k_accepted
                         ));
                     }
                     Mode::Charging => {
-                        last_k_move = now_ts;
-                        k_mark = None;
-                        post_full_idle = false;
+                        // 充电期间不接管：交还系统计电量，快充显示实时跟上
+                        let _ = Command::new("dumpsys").args(["battery", "reset"]).output();
                         valve_count = 0;
                         valve_active = false;
-                        write_log(&format!(
-                            "切换→充电 | smooth={:.1} k={:?}",
-                            sm.smooth, k_accepted
-                        ));
+                        write_log("切换→充电 | dumpsys battery reset，充电期间由系统计电量");
                     }
                     _ => {
                         valve_count = 0;
@@ -300,11 +294,6 @@ pub fn run(cfg: &Config) {
                         v_pct
                     }
                 }
-                Mode::Charging => match k_pct {
-                    Some(k) if !stuck => k,
-                    // 内核卡死兜底：电压死推但封顶，防 CV 阶段虚高冲 100
-                    _ => v_pct.min(cfg.charge_v_cap),
-                },
                 _ => sm.smooth,
             }
         };
@@ -326,15 +315,12 @@ pub fn run(cfg: &Config) {
                     };
                     sm.smooth -= (dt / rate).min(sm.smooth - target);
                 } else if target > sm.smooth {
-                    sm.smooth += (dt / cfg.rate_dis_up as f64).min(target - sm.smooth);
-                }
-            }
-            Mode::Charging => {
-                if target > sm.smooth {
-                    let rate = if stuck {
-                        cfg.rate_charge_stuck as f64
+                    // 大幅落后（如开机时系统显示是过期值）按下降同速追赶；
+                    // 小幅差距（负载移除后的电压回弹）仍用慢速回升
+                    let rate = if target - sm.smooth > 5.0 {
+                        cfg.rate_dis_down as f64
                     } else {
-                        cfg.rate_charge as f64
+                        cfg.rate_dis_up as f64
                     };
                     sm.smooth += (dt / rate).min(target - sm.smooth);
                 }
@@ -343,31 +329,8 @@ pub fn run(cfg: &Config) {
         }
         sm.smooth = sm.smooth.clamp(cfg.min_percent as f64, 100.0);
 
-        // ---- 满电：三者到顶（或系统报 Full）连续 3 拍 → reset 退出接管 ----
-        if !full_latched && matches!(mode, Mode::Charging | Mode::Other) {
-            let k_ok = k_pct.map_or(false, |k| k >= 99.0);
-            let cond = (sm.smooth >= 99.0 && k_ok && v_pct >= 99.0) || status_str == "Full";
-            full_count = if cond { full_count + 1 } else { 0 };
-            if full_count >= 3 {
-                write_log(&format!(
-                    "满电确认 (smooth={:.1} k={:?} v={:.1} status={})，dumpsys battery reset 恢复真实电量",
-                    sm.smooth, k_pct, v_pct, status_str
-                ));
-                let _ = Command::new("dumpsys").args(["battery", "reset"]).output();
-                sm.smooth = k_pct.unwrap_or(100.0).min(100.0);
-                full_latched = true;
-                post_full_idle = true;
-                full_count = 0;
-                smoother::save(sm.smooth, &status_str);
-            }
-        } else if full_latched
-            && (mode == Mode::Discharging || k_pct.map_or(false, |k| k < 97.0))
-        {
-            full_latched = false;
-        }
-
         // ---- 下发电量：固定 30s 周期；切入放电时立即下发 ----
-        let publishable = matches!(mode, Mode::Discharging | Mode::Charging) && !post_full_idle;
+        let publishable = mode == Mode::Discharging;
         let publish_due = now_ts.saturating_sub(last_pub_ts) >= PUBLISH_SECS;
         if publishable && (publish_due || force_publish) {
             let lvl = sm.smooth.floor().clamp(cfg.min_percent as f64, 100.0) as i64;

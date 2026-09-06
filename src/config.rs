@@ -11,8 +11,6 @@ pub struct Config {
     /// 电池内阻(mΩ)，放电时做负载补偿
     pub r_mohm: f64,
     pub min_percent: i64,
-    /// 充电时电压兜底路径的封顶百分比
-    pub charge_v_cap: f64,
     /// 拔线后弛豫窗口时长(秒)
     pub relax_secs: u64,
     /// 内核电量无变化超时(秒)
@@ -20,8 +18,6 @@ pub struct Config {
     /// 各方向限速：每变化 1% 所需秒数
     pub rate_dis_down: u64,
     pub rate_dis_up: u64,
-    pub rate_charge: u64,
-    pub rate_charge_stuck: u64,
     pub rate_valve: u64,
     /// 安全阀触发电压（裸端电压 mV）
     pub valve_mv: i64,
@@ -89,13 +85,10 @@ impl Config {
             v_curve,
             r_mohm: get_f64(&content, "R_MOHM", 40.0),
             min_percent: get_i64(&content, "MIN_PERCENT", 1).clamp(0, 10),
-            charge_v_cap: get_f64(&content, "CHARGE_V_CAP", 96.0).clamp(50.0, 100.0),
             relax_secs: get_u64(&content, "RELAX_AFTER_UNPLUG_SECS", 300),
             stuck_timeout_secs: get_u64(&content, "KERNEL_STUCK_TIMEOUT_SECS", 900),
             rate_dis_down: get_u64(&content, "RATE_DISCHARGE_DOWN_SECS", 60).max(3),
             rate_dis_up: get_u64(&content, "RATE_DISCHARGE_UP_SECS", 180).max(3),
-            rate_charge: get_u64(&content, "RATE_CHARGE_UP_SECS", 45).max(3),
-            rate_charge_stuck: get_u64(&content, "RATE_CHARGE_STUCK_SECS", 300).max(3),
             rate_valve: get_u64(&content, "RATE_VALVE_SECS", 10).max(1),
             valve_mv: get_i64(&content, "SHUTDOWN_VALVE_MV", 3150),
             valve_comp_mv: get_i64(&content, "VALVE_COMP_MV", 3250),
