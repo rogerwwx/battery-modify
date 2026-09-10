@@ -1,0 +1,72 @@
+[2026-09-06 10:58:11] set level 7 | 放电 smooth=7.4 target=7.4 v=2.9%(补偿3317mV/裸3294mV) k=7.4 rm=468/fcc=6325mAh
+[2026-09-06 10:58:41] set level 7 | 放电 smooth=7.3 target=7.3 v=2.8%(补偿3327mV/裸3316mV) k=7.3 rm=464/fcc=6325mAh
+[2026-09-06 10:59:11] set level 7 | 放电 smooth=7.2 target=7.2 v=2.8%(补偿3332mV/裸3300mV) k=7.2 rm=458/fcc=6325mAh
+[2026-09-06 10:59:41] set level 7 | 放电 smooth=7.2 target=7.2 v=2.7%(补偿3320mV/裸3298mV) k=7.2 rm=453/fcc=6325mAh
+[2026-09-06 11:00:11] set level 7 | 放电 smooth=7.1 target=7.1 v=2.7%(补偿3323mV/裸3310mV) k=7.1 rm=448/fcc=6325mAh
+[2026-09-06 11:00:41] set level 7 | 放电 smooth=7.0 target=7.0 v=2.7%(补偿3323mV/裸3311mV) k=7.0 rm=445/fcc=6325mAh
+[2026-09-06 11:01:11] set level 7 | 放电 smooth=7.0 target=7.0 v=2.7%(补偿3319mV/裸3309mV) k=7.0 rm=441/fcc=6325mAh
+[2026-09-06 11:01:41] set level 6 | 放电 smooth=6.9 target=6.9 v=2.7%(补偿3326mV/裸3313mV) k=6.9 rm=438/fcc=6325mAh
+[2026-09-06 11:02:11] set level 6 | 放电 smooth=6.9 target=6.9 v=2.7%(补偿3328mV/裸3311mV) k=6.9 rm=435/fcc=6325mAh
+[2026-09-06 11:02:41] set level 6 | 放电 smooth=6.8 target=6.8 v=2.7%(补偿3320mV/裸3309mV) k=6.8 rm=431/fcc=6325mAh
+[2026-09-06 11:03:11] set level 6 | 放电 smooth=6.8 target=6.8 v=2.6%(补偿3321mV/裸3299mV) k=6.8 rm=428/fcc=6325mAh
+[2026-09-06 11:03:41] set level 6 | 放电 smooth=6.7 target=6.7 v=2.6%(补偿3315mV/裸3291mV) k=6.7 rm=423/fcc=6325mAh
+[2026-09-06 11:04:11] set level 6 | 放电 smooth=6.6 target=6.6 v=2.6%(补偿3314mV/裸3303mV) k=6.6 rm=419/fcc=6325mAh
+[2026-09-06 11:04:41] set level 6 | 放电 smooth=6.6 target=6.6 v=2.6%(补偿3307mV/裸3296mV) k=6.6 rm=415/fcc=6325mAh
+[2026-09-06 11:05:11] set level 6 | 放电 smooth=6.5 target=6.5 v=2.5%(补偿3313mV/裸3302mV) k=6.5 rm=412/fcc=6325mAh
+[2026-09-06 11:05:41] set level 6 | 放电 smooth=6.5 target=6.5 v=2.5%(补偿3306mV/裸3293mV) k=6.5 rm=408/fcc=6325mAh
+[2026-09-06 11:06:11] set level 6 | 放电 smooth=6.4 target=6.4 v=2.5%(补偿3305mV/裸3293mV) k=6.4 rm=403/fcc=6325mAh
+[2026-09-06 11:06:41] set level 6 | 放电 smooth=6.3 target=6.3 v=2.5%(补偿3295mV/裸3270mV) k=6.3 rm=397/fcc=6325mAh
+[2026-09-06 11:07:11] set level 6 | 放电 smooth=6.2 target=6.2 v=2.4%(补偿3292mV/裸3275mV) k=6.2 rm=390/fcc=6325mAh
+[2026-09-06 11:08:02] set level 6 | 放电 smooth=6.2 target=6.2 v=2.4%(补偿3308mV/裸3267mV) k=6.2 rm=389/fcc=6325mAh
+[2026-09-06 11:08:32] set level 6 | 放电 smooth=6.1 target=6.1 v=2.4%(补偿3307mV/裸3294mV) k=6.1 rm=386/fcc=6325mAh
+[2026-09-06 11:09:02] set level 6 | 放电 smooth=6.1 target=6.1 v=2.4%(补偿3296mV/裸3263mV) k=6.1 rm=383/fcc=6325mAh
+[2026-09-06 11:09:32] set level 6 | 放电 smooth=6.0 target=6.0 v=2.4%(补偿3289mV/裸3261mV) k=6.0 rm=379/fcc=6325mAh
+[2026-09-06 11:10:02] set level 5 | 放电 smooth=5.9 target=5.9 v=2.3%(补偿3292mV/裸3262mV) k=5.9 rm=375/fcc=6325mAh
+[2026-09-06 11:10:32] set level 5 | 放电 smooth=5.9 target=5.9 v=2.2%(补偿3262mV/裸3233mV) k=5.9 rm=371/fcc=6325mAh
+[2026-09-06 11:11:02] set level 5 | 放电 smooth=5.8 target=5.8 v=2.2%(补偿3281mV/裸3271mV) k=5.8 rm=368/fcc=6325mAh
+[2026-09-06 11:11:32] set level 5 | 放电 smooth=5.8 target=5.8 v=2.1%(补偿3283mV/裸3269mV) k=5.8 rm=366/fcc=6325mAh
+[2026-09-06 11:12:02] set level 5 | 放电 smooth=5.7 target=5.7 v=2.1%(补偿3285mV/裸3254mV) k=5.7 rm=363/fcc=6325mAh
+[2026-09-06 11:12:32] set level 5 | 放电 smooth=5.7 target=5.7 v=2.1%(补偿3279mV/裸3251mV) k=5.7 rm=360/fcc=6325mAh
+[2026-09-06 11:13:02] set level 5 | 放电 smooth=5.6 target=5.6 v=2.1%(补偿3276mV/裸3264mV) k=5.6 rm=356/fcc=6325mAh
+[2026-09-06 11:13:32] set level 5 | 放电 smooth=5.6 target=5.6 v=2.1%(补偿3267mV/裸3251mV) k=5.6 rm=353/fcc=6325mAh
+[2026-09-06 11:14:02] set level 5 | 放电 smooth=5.5 target=5.5 v=2.0%(补偿3270mV/裸3240mV) k=5.5 rm=349/fcc=6325mAh
+[2026-09-06 11:14:32] set level 5 | 放电 smooth=5.4 target=5.4 v=1.9%(补偿3256mV/裸3223mV) k=5.4 rm=344/fcc=6325mAh
+[2026-09-06 11:15:02] set level 5 | 放电 smooth=5.4 target=5.4 v=1.8%(补偿3245mV/裸3231mV) k=5.4 rm=339/fcc=6325mAh
+[2026-09-06 11:15:32] set level 5 | 放电 smooth=5.3 target=5.3 v=1.8%(补偿3253mV/裸3231mV) k=5.3 rm=336/fcc=6325mAh
+[2026-09-06 11:16:02] set level 5 | 放电 smooth=5.3 target=5.3 v=1.8%(补偿3247mV/裸3233mV) k=5.3 rm=333/fcc=6325mAh
+[2026-09-06 11:16:32] set level 5 | 放电 smooth=5.2 target=5.2 v=1.7%(补偿3246mV/裸3235mV) k=5.2 rm=327/fcc=6325mAh
+[2026-09-06 11:17:02] set level 5 | 放电 smooth=5.1 target=5.1 v=1.7%(补偿3247mV/裸3226mV) k=5.1 rm=322/fcc=6325mAh
+[2026-09-06 11:17:32] set level 5 | 放电 smooth=5.0 target=5.0 v=1.7%(补偿3255mV/裸3226mV) k=5.0 rm=317/fcc=6325mAh
+[2026-09-06 11:18:02] set level 4 | 放电 smooth=4.9 target=4.9 v=1.7%(补偿3249mV/裸3218mV) k=4.9 rm=309/fcc=6325mAh
+[2026-09-06 11:18:32] set level 4 | 放电 smooth=4.7 target=4.7 v=1.6%(补偿3232mV/裸3215mV) k=4.7 rm=300/fcc=6325mAh
+[2026-09-06 11:19:02] set level 4 | 放电 smooth=4.6 target=4.6 v=1.6%(补偿3241mV/裸3226mV) k=4.6 rm=294/fcc=6325mAh
+[2026-09-06 11:19:32] set level 4 | 放电 smooth=4.6 target=4.6 v=1.6%(补偿3240mV/裸3219mV) k=4.6 rm=290/fcc=6325mAh
+[2026-09-06 11:20:02] set level 4 | 放电 smooth=4.5 target=4.5 v=1.5%(补偿3233mV/裸3220mV) k=4.5 rm=282/fcc=6325mAh
+[2026-09-06 11:20:32] set level 4 | 放电 smooth=4.4 target=4.4 v=1.5%(补偿3233mV/裸3204mV) k=4.4 rm=277/fcc=6325mAh
+[2026-09-06 11:21:02] set level 4 | 放电 smooth=4.2 target=4.2 v=1.5%(补偿3227mV/裸3199mV) k=4.2 rm=268/fcc=6325mAh
+[2026-09-06 11:21:32] set level 4 | 放电 smooth=4.1 target=4.1 v=1.4%(补偿3220mV/裸3193mV) k=4.1 rm=260/fcc=6325mAh
+[2026-09-06 11:22:02] set level 4 | 放电 smooth=4.0 target=4.0 v=1.4%(补偿3207mV/裸3187mV) k=4.0 rm=250/fcc=6325mAh
+[2026-09-06 11:22:32] set level 3 | 放电 smooth=3.9 target=3.9 v=1.3%(补偿3218mV/裸3198mV) k=3.9 rm=244/fcc=6325mAh
+[2026-09-06 11:23:02] set level 3 | 放电 smooth=3.8 target=3.8 v=1.2%(补偿3218mV/裸3199mV) k=3.8 rm=238/fcc=6325mAh
+[2026-09-06 11:23:32] set level 3 | 放电 smooth=3.6 target=3.6 v=1.2%(补偿3206mV/裸3191mV) k=3.6 rm=230/fcc=6325mAh
+[2026-09-06 11:24:02] set level 3 | 放电 smooth=3.5 target=3.5 v=1.2%(补偿3210mV/裸3186mV) k=3.5 rm=223/fcc=6325mAh
+[2026-09-06 11:24:32] set level 3 | 放电 smooth=3.4 target=3.4 v=1.1%(补偿3205mV/裸3191mV) k=3.4 rm=217/fcc=6325mAh
+[2026-09-06 11:25:02] set level 3 | 放电 smooth=3.3 target=3.3 v=1.1%(补偿3200mV/裸3188mV) k=3.3 rm=209/fcc=6325mAh
+[2026-09-06 11:25:32] set level 3 | 放电 smooth=3.2 target=3.2 v=1.1%(补偿3198mV/裸3182mV) k=3.2 rm=204/fcc=6325mAh
+[2026-09-06 11:26:02] set level 3 | 放电 smooth=3.1 target=3.1 v=1.0%(补偿3198mV/裸3176mV) k=3.1 rm=196/fcc=6325mAh
+[2026-09-06 11:26:32] set level 3 | 放电 smooth=3.0 target=3.0 v=1.0%(补偿3200mV/裸3168mV) k=3.0 rm=190/fcc=6325mAh
+[2026-09-06 11:27:02] set level 2 | 放电 smooth=2.8 target=2.8 v=1.0%(补偿3171mV/裸3141mV) k=2.8 rm=180/fcc=6325mAh
+[2026-09-06 11:27:32] set level 2 | 放电 smooth=2.7 target=2.7 v=1.0%(补偿3175mV/裸3159mV) k=2.7 rm=173/fcc=6325mAh [安全阀]
+[2026-09-06 11:28:02] set level 2 | 放电 smooth=2.6 target=2.6 v=1.0%(补偿3165mV/裸3147mV) k=2.6 rm=164/fcc=6325mAh [安全阀]
+[2026-09-06 11:28:32] set level 2 | 放电 smooth=2.5 target=2.5 v=1.0%(补偿3173mV/裸3158mV) k=2.5 rm=158/fcc=6325mAh [安全阀]
+[2026-09-06 11:29:02] set level 2 | 放电 smooth=2.4 target=2.4 v=1.0%(补偿3178mV/裸3165mV) k=2.4 rm=152/fcc=6325mAh [安全阀]
+[2026-09-06 11:29:32] set level 2 | 放电 smooth=2.3 target=2.3 v=1.0%(补偿3167mV/裸3153mV) k=2.3 rm=145/fcc=6325mAh [安全阀]
+[2026-09-06 11:30:02] set level 2 | 放电 smooth=2.2 target=2.2 v=1.0%(补偿3156mV/裸3142mV) k=2.2 rm=137/fcc=6325mAh [安全阀]
+[2026-09-06 11:30:32] set level 2 | 放电 smooth=2.1 target=2.1 v=1.0%(补偿3158mV/裸3127mV) k=2.1 rm=130/fcc=6325mAh [安全阀]
+[2026-09-06 11:31:02] set level 1 | 放电 smooth=1.9 target=1.9 v=1.0%(补偿3151mV/裸3135mV) k=1.9 rm=121/fcc=6325mAh [安全阀]
+[2026-09-06 11:31:32] set level 1 | 放电 smooth=1.8 target=1.8 v=1.0%(补偿3156mV/裸3134mV) k=1.8 rm=116/fcc=6325mAh [安全阀]
+[2026-09-06 11:32:02] set level 1 | 放电 smooth=1.7 target=1.7 v=1.0%(补偿3155mV/裸3143mV) k=1.7 rm=109/fcc=6325mAh [安全阀]
+[2026-09-06 11:32:32] set level 1 | 放电 smooth=1.6 target=1.6 v=1.0%(补偿3151mV/裸3129mV) k=1.6 rm=103/fcc=6325mAh [安全阀]
+[2026-09-06 11:33:02] set level 1 | 放电 smooth=1.5 target=1.5 v=1.0%(补偿3150mV/裸3136mV) k=1.5 rm=97/fcc=6325mAh [安全阀]
+[2026-09-06 11:33:32] set level 1 | 放电 smooth=1.4 target=1.4 v=1.0%(补偿3136mV/裸3122mV) k=1.4 rm=90/fcc=6325mAh [安全阀]
+[2026-09-06 11:34:02] set level 1 | 放电 smooth=1.3 target=1.3 v=1.0%(补偿3137mV/裸3124mV) k=1.3 rm=84/fcc=6325mAh [安全阀]

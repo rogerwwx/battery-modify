@@ -4,6 +4,7 @@ use std::time::Duration;
 use nix::sys::timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags};
 
 use crate::config::Config;
+use crate::estimator::Estimator;
 use crate::filter::MedianEma;
 use crate::smoother;
 use crate::source::{self, Reading};
@@ -83,7 +84,7 @@ fn read_displayed_level() -> Option<i64> {
 }
 
 pub fn run(cfg: &Config) {
-    write_log("电量接管启动：电压模拟 + 内核融合 + 平滑限速");
+    write_log("电量接管启动：库仑计+OCV锚定+内核融合 + 平滑限速");
     let src = source::probe(cfg.current_sign);
 
     let first = src.read();
@@ -94,6 +95,9 @@ pub fn run(cfg: &Config) {
         "smooth 初始化 {:.1}% (来源:{}) | 系统显示 {:?} | 内核电量 {:?}",
         sm.smooth, init_src, displayed, k0
     ));
+
+    // 电量估计器：库仑计步进 + OCV 锚定 + 内核绝对值融合
+    let mut est = Estimator::new(sm.smooth);
 
     // 轮询间隔相关：所有周期性逻辑按时间换算，行为与轮询间隔无关
     let poll = cfg.poll_secs;
@@ -161,6 +165,8 @@ pub fn run(cfg: &Config) {
                             Some(d) => d as f64,
                             None => k_accepted.unwrap_or(sm.smooth),
                         };
+                        // 估计器随接管起点重播种（同时清空 RM 基准）
+                        est = Estimator::new(sm.smooth);
                         k_mark = None;
                         force_publish = true;
                         write_log(&format!(
@@ -273,26 +279,28 @@ pub fn run(cfg: &Config) {
         let in_relax = mode == Mode::Discharging && now_ts < relax_until;
         let boost = mode == Mode::Discharging && v_pct < sm.smooth - 10.0;
 
-        // ---- 目标融合 ----
+        // ---- 目标融合：估计器（库仑计步进 + OCV 锚定 + 内核绝对值）----
+        let dt = poll as f64;
         let mut target = if valve_active && mode == Mode::Discharging {
             cfg.min_percent as f64
         } else {
             match mode {
                 Mode::Discharging => {
-                    // 以电压模拟为准，内核做下限保护（max）；
                     // 内核缺失、卡死或与电压偏差离谱（小板异常）时不参与融合
-                    let k_ok = match k_pct {
-                        Some(k) => !stuck && (k - v_pct).abs() <= KERNEL_SANITY_GAP,
-                        None => false,
+                    let k_fuse = match k_pct {
+                        Some(k) if !stuck && (k - v_pct).abs() <= KERNEL_SANITY_GAP => Some(k),
+                        _ => None,
                     };
-                    if in_relax {
-                        // 拔线弛豫窗口：电压被表面电荷抬高，暂以内核为准
-                        k_pct.unwrap_or(v_pct)
-                    } else if k_ok {
-                        v_pct.max(k_pct.unwrap())
-                    } else {
-                        v_pct
-                    }
+                    est.update(
+                        &rd,
+                        v_pct,
+                        k_fuse,
+                        in_relax,
+                        dt,
+                        cfg.tau_anchor_secs,
+                        cfg.tau_kernel_secs,
+                    );
+                    est.soc
                 }
                 _ => sm.smooth,
             }
@@ -302,7 +310,6 @@ pub fn run(cfg: &Config) {
         }
 
         // ---- 平滑限速推进（充电方向永不下调）----
-        let dt = poll as f64;
         match mode {
             Mode::Discharging => {
                 if target < sm.smooth {

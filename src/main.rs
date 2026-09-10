@@ -4,6 +4,7 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 mod config;
+mod estimator;
 mod filter;
 mod monitor;
 mod smoother;

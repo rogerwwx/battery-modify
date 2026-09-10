@@ -27,6 +27,10 @@ pub struct Config {
     /// 电流符号：0=自动, 1=正为充电, -1=正为放电
     pub current_sign: i32,
     pub calib_log: bool,
+    /// OCV 锚定时常数(秒)：估计值缓速拉向电压查表值，消除库仑计漂移
+    pub tau_anchor_secs: u64,
+    /// 内核绝对值融合时常数(秒)：电量计健康时估计值快速贴近 RM/FCC
+    pub tau_kernel_secs: u64,
 }
 
 fn get_val(content: &str, key: &str) -> Option<String> {
@@ -90,11 +94,15 @@ impl Config {
             rate_dis_down: get_u64(&content, "RATE_DISCHARGE_DOWN_SECS", 60).max(3),
             rate_dis_up: get_u64(&content, "RATE_DISCHARGE_UP_SECS", 180).max(3),
             rate_valve: get_u64(&content, "RATE_VALVE_SECS", 10).max(1),
-            valve_mv: get_i64(&content, "SHUTDOWN_VALVE_MV", 3150),
+            // 3150→3130：实测低端裸电压最低 3122mV，真实 1.3~1.5% 对应 3122~3136mV，
+            // 阈值取 3130 只在真实 ~1% 区间触发；再低（如 3120）则永不触发，安全阀失效
+            valve_mv: get_i64(&content, "SHUTDOWN_VALVE_MV", 3130),
             valve_comp_mv: get_i64(&content, "VALVE_COMP_MV", 3250),
             valve_cap: get_f64(&content, "VALVE_CAP_PERCENT", 5.0),
             current_sign: get_i64(&content, "CURRENT_SIGN", 0).clamp(-1, 1) as i32,
             calib_log: get_bool(&content, "CALIB_LOG", false),
+            tau_anchor_secs: get_u64(&content, "TAU_ANCHOR_SECS", 1200).max(60),
+            tau_kernel_secs: get_u64(&content, "TAU_KERNEL_SECS", 300).max(30),
         }
     }
 }
